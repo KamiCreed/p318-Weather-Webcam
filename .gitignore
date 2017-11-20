@@ -101,3 +101,4 @@ ENV/
 .mypy_cache/
 
 /katkam-scaled
+/test-img
