@@ -5,10 +5,44 @@ from skimage.io import imread_collection
 from skimage.io import ImageCollection
 import glob
 import os
-
+import difflib
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from PIL import Image
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.multiclass import OneVsRestClassifier
+
+# def get_matching_weather(observation):
+# 	weather_types = pd.Series(['Cloudy','Rain','Clear','Fog','Drizzle','Snow','Hail','Thunderstorms','Snow Pellets'])
+# 	list = []
+# 	for type in weather_types:
+# 		if observation in type:
+# 			list.append(type)
+# 	return list
+
+def match_weather(weather):
+
+	#result = weather.map(lambda x: x.split(','))
+	#r = result.apply(get_matching_weather)
+	#print("MATCH WEATHER: ", r)
+	return
+
+# Remove modifiers and extra words from weather labels
+def clean_labels(weather_labels):
+	# returns a 2d np array of labels
+	#print(np.char.split(weather_labels,','))
+	
+	# separate by commas and get close match of each
+	#print(weather_labels)
+	#eee = match_weather(weather_labels)
+	#clean = weather_labels.map(lambda x: difflib.get_close_matches(x, weather_types,cutoff=0.4))
+	#print(clean)
+	#return clean
+	return
+
+def np_clean_labels(weather_labels):
+	# returns a 2d np array of labels
+	print(np.char.split(weather_labels,','))
 
 def main(csv_directory, img_directory):
     
@@ -41,16 +75,26 @@ def main(csv_directory, img_directory):
     
     joined = labels.set_index('Date/Time').join(df.set_index('Date/Time'))
     joined = joined.dropna(subset=['Weather'])
-#    print(joined)
     
+    np_clean_labels(joined['Weather'].values.astype(str))
+
+    #joined['clean'] = clean_labels(joined['Weather'])
+    #print(joined)
+    #print(MultiLabelBinarizer().fit_transform(joined['clean']))
+    return
     for img_path in joined['paths'].values:
         im = Image.open(img_path)
         pixels = np.array(im.getdata())
         l.append(pixels.flatten())
     X = np.asarray(l)
     
-    X_train, X_test, y_train, y_test = train_test_split(X, joined.Weather.values)
-    
+
+    #X_train, X_test, y_train, y_test = train_test_split(X, joined.Weather.values)
+    X_train, X_test, y_train, y_test = train_test_split(X, MultiLabelBinarizer().fit_transform(joined['clean']))
+    # got 0.00542 with MLP, no OneVsRest, MultiLabelBinarizer
+    # got 0.00542 with MLP, OneVsRest, MultiLabelBinarizer
+    #X_train, X_test, y_train, y_test = train_test_split(X, joined['clean'].values) #doesn't work because multilabel
+
     model = MLPClassifier(solver='lbfgs', hidden_layer_sizes=(4, 3),
                       activation='logistic')
     model.fit(X_train, y_train)
