@@ -11,6 +11,7 @@ from sklearn.neural_network import MLPClassifier
 from PIL import Image
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.multiclass import OneVsRestClassifier
+import re
 
 # def get_matching_weather(observation):
 # 	weather_types = pd.Series(['Cloudy','Rain','Clear','Fog','Drizzle','Snow','Hail','Thunderstorms','Snow Pellets'])
@@ -28,22 +29,39 @@ def match_weather(weather):
 	return
 
 # Remove modifiers and extra words from weather labels
-def clean_labels(weather_labels):
-	# returns a 2d np array of labels
-	#print(np.char.split(weather_labels,','))
-	
+def clean_labels(unclean_labels, labels_list):
 	# separate by commas and get close match of each
 	#print(weather_labels)
 	#eee = match_weather(weather_labels)
 	#clean = weather_labels.map(lambda x: difflib.get_close_matches(x, weather_types,cutoff=0.4))
 	#print(clean)
 	#return clean
-	return
+	
+	# https://stackoverflow.com/questions/33406313/how-to-match-any-string-from-a-list-of-strings-in-regular-expressions-in-python
+	#x = re.findall(r"(?=("+'|'.join(labels_list)+r"))",unclean_labels)
+	#print("CLEANLABELS FUNC=",x)
+	return# x
 
 def np_clean_labels(weather_labels):
 	# returns a 2d np array of labels
-	print(np.char.split(weather_labels,','))
+	weather_types = pd.Series(['Cloudy','Rain','Clear','Fog','Drizzle','Snow','Hail','Thunderstorms','Snow Pellets'])
+	uncleaned_list = np.char.split(weather_labels,',')
+	all_labels = []
+	length = len(uncleaned_list)
+	for i in range(0,length):
+		sub_len = len(uncleaned_list[i])
+		# Some entries may have multiple labels
+		for j in range(0,sub_len):
+			all_labels.append(uncleaned_list[i][j])
+	#all_labels = pd.Series(all_labels)
+	print(all_labels)
+	#rgx = r'\bCloudy|\bRain|\bClear|\bFog|\bDrizzle|\bSnow|\bHail|\bThunderstorms|\Snow Pellets'
+	#result = all_labels.extract(rgx, all_labels, expand=False)
 
+	
+	#print(result)
+	return
+    
 def main(csv_directory, img_directory):
     
     allFiles = glob.glob(csv_directory + "/*.csv")
@@ -79,7 +97,8 @@ def main(csv_directory, img_directory):
     np_clean_labels(joined['Weather'].values.astype(str))
 
     #joined['clean'] = clean_labels(joined['Weather'])
-    #print(joined)
+	
+    #print('JOINED:',joined)
     #print(MultiLabelBinarizer().fit_transform(joined['clean']))
     return
     for img_path in joined['paths'].values:
