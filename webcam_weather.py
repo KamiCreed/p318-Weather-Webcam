@@ -8,17 +8,17 @@ import os
 import gc
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
-from sklearn.svm import SVC
 from PIL import Image
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.feature_extraction import image
 from sklearn.pipeline import make_pipeline
 from sklearn.decomposition import PCA
 from skimage import exposure
 from skimage import filters
 import re
-from scipy import misc
+from skimage import io
 
 
 def np_clean_labels(weather_labels):
@@ -45,20 +45,20 @@ def np_clean_labels(weather_labels):
 def load_imgs(X_path):
     l = []
     for img_path in X_path:
-        img2d = misc.imread(img_path)
+        img2d = io.imread(img_path)
         l.append(img2d.ravel())
     return np.asarray(l)
 
 def load_imgs_processing(X_path):
     l = []
     for img_path in X_path:
-        img2d = misc.imread(img_path)
+        img2d = io.imread(img_path)
 #        misc.imshow(img2d)
 #        input("Press enter for processing...")
-        img2d = exposure.equalize_hist(img2d)
+#        img2d = exposure.equalize_hist(img2d)
 #        misc.imshow(img2d)
 #        input("Press enter to continue...")
-        img2d = filters.gaussian(img2d, sigma=2, multichannel=True)
+        img2d = filters.gaussian(img2d, sigma=8, multichannel=True)
         l.append(img2d.ravel())
     return np.asarray(l)
 
@@ -121,9 +121,12 @@ def main():
     #X_train, X_test, y_train, y_test = train_test_split(X, joined['clean'].values) #doesn't work because multilabel
 
     model = make_pipeline(
-            PCA(40000),
-            SVC(kernel='sigmoid', C=2.0)
-            )
+                PCA(40000),
+#                MLPClassifier(solver='lbfgs', hidden_layer_sizes=(100),
+#                      activation='logistic')
+                KNeighborsClassifier(n_neighbors=20)
+                )
+    
     model.fit(X_train, y_train)
     
     X_test = load_imgs(X_test_paths)
