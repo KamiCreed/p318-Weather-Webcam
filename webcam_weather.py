@@ -8,10 +8,15 @@ import os
 import gc
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
+from sklearn.svm import SVC
 from PIL import Image
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.feature_extraction import image
+from sklearn.pipeline import make_pipeline
+from sklearn.decomposition import PCA
+from skimage import exposure
+from skimage import filters
 import re
 from scipy import misc
 
@@ -40,10 +45,30 @@ def np_clean_labels(weather_labels):
 def load_imgs(X_path):
     l = []
     for img_path in X_path:
-        l.append(misc.imread(img_path))
+        img2d = misc.imread(img_path)
+        l.append(img2d.ravel())
     return np.asarray(l)
 
-def main(csv_directory, img_directory):
+def load_imgs_processing(X_path):
+    l = []
+    for img_path in X_path:
+        img2d = misc.imread(img_path)
+#        misc.imshow(img2d)
+#        input("Press enter for processing...")
+        img2d = exposure.equalize_hist(img2d)
+#        misc.imshow(img2d)
+#        input("Press enter to continue...")
+        img2d = filters.gaussian(img2d, sigma=2, multichannel=True)
+        l.append(img2d.ravel())
+    return np.asarray(l)
+
+def main():
+    if len(sys.argv) < 4:
+        print('Please input parameters in this order: CSV folder, Image folder, Column ID')
+        return
+    
+    csv_directory = sys.argv[1]
+    img_directory = sys.argv[2]
     column_id = int(sys.argv[3])
     
     allFiles = glob.glob(csv_directory + "/*.csv")
@@ -85,43 +110,25 @@ def main(csv_directory, img_directory):
     
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
     
-    half = int(len(X_train_paths) / 2)
-    X_path1 = X_train_paths[:half]
-    X_path2 = X_train_paths[half:]
-    y_train1 = y_train[:half]
-    y_train2 = y_train[half:]
+    print("Loading images...")
+    X_train = load_imgs_processing(X_train_paths)
     
-    patch_ext = image.PatchExtractor((2, 2))
-    print("Loading first half of images")
-    X_train1 = patch_ext.transform(load_imgs(X_path1))
-    
-    print("Start Partial Training")
+    print("Start Training")
     #X_train, X_test, y_train, y_test = train_test_split(X, joined.Weather.values)
     #X_train, X_test, y_train, y_test = train_test_split(X, MultiLabelBinarizer().fit_transform(joined['Weather']))
     # got 0.00542 with MLP, no OneVsRest, MultiLabelBinarizer
     # got 0.00542 with MLP, OneVsRest, MultiLabelBinarizer
     #X_train, X_test, y_train, y_test = train_test_split(X, joined['clean'].values) #doesn't work because multilabel
 
-    model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
-                      activation='logistic')
-    
-    classes = [i for i in range(y_train.shape[1])]
-    model.partial_fit(X_train1, y_train1, classes)
-    del X_train1
-    gc.collect()
-    
-    print("Loading second half")
-    X_train2 = patch_ext.transform(load_imgs(X_path2))
-    print("Start Partial Training")
-    model.partial_fit(X_train2, y_train2)
-    del X_train2
-    gc.collect()
+    model = make_pipeline(
+            PCA(40000),
+            SVC(kernel='sigmoid', C=2.0)
+            )
+    model.fit(X_train, y_train)
     
     X_test = load_imgs(X_test_paths)
     
     print(model.score(X_test, y_test))
 
 if __name__=='__main__':
-    csv_directory = sys.argv[1]
-    img_directory = sys.argv[2]
-    main(csv_directory, img_directory)
+    main()
