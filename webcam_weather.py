@@ -23,6 +23,8 @@ import re
 from skimage import io
 
 
+# Clean the weather labels into several defined distinct labels.
+# Also, allows for multiple labels per row.
 def np_clean_labels(weather_labels):
     # https://stackoverflow.com/questions/42254384/pandas-extractall-is-not-extracting-all-cases-given-a-regex
     r = re.compile(r'\b(?:Cloudy|Rain|Clear|Fog|Drizzle|Ice Pellets|Hail|Thunderstorms|Snow)')
@@ -44,12 +46,9 @@ def np_clean_labels(weather_labels):
     all_labels = pd.Series(all_labels)
     return all_labels
     
+# Loads the images from an array of paths into a numpy array.
+# Each image is ravelled into one long array.
 def load_imgs(X_path):
-    # From https://stackoverflow.com/questions/27841554/array-of-images-in-python
-    arr = np.array([np.array(io.imread(img).ravel()) for img in X_path])
-    return arr
-
-def load_imgs_processing(X_path):
     # From https://stackoverflow.com/questions/27841554/array-of-images-in-python
     arr = np.array([np.array(io.imread(img).ravel()) for img in X_path])
     return arr
@@ -80,19 +79,24 @@ def main():
     img_directory = sys.argv[2]
     column_id = int(sys.argv[3])
     
+    # Load in CSV files from a folder
+    # Where the data actually starts is hard-coded in `header=14`.
     allFiles = glob.glob(csv_directory + "/*.csv")
     df = pd.concat((pd.read_csv(f, parse_dates=['Date/Time'], header=14) for f in allFiles), ignore_index=True)
     
     paths = []
     names = []
-    
-    # From https://stackoverflow.com/questions/34976595/using-train-test-split-with-images-from-my-local-directory
+
+    # Get the image paths in the folder    
+    # Adapted from https://stackoverflow.com/questions/34976595/using-train-test-split-with-images-from-my-local-directory
     for path, subdirs, files in os.walk(img_directory):
         for name in files:
             img_path = os.path.join(path,name)
             paths.append(img_path)
             names.append(name)
     
+    # Join the image paths and weather data in terms of date.
+    # This makes sure the X and the y arrays are the same size.
     labels = pd.DataFrame(names, columns=['filename'])
     labels['paths'] = pd.Series(paths)
     labels['string'] = labels.filename.str.extract('(\d+)', expand=True).astype(str)
@@ -107,7 +111,6 @@ def main():
     # Target == Time of day
     elif column_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
-        #print(joined)
         y = joined['time_of_day'].values
     # Target == Specific Hour
     elif column_id == 2:
@@ -126,19 +129,11 @@ def main():
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
     
     print("Loading images...")
-    X_train = load_imgs_processing(X_train_paths)
+    X_train = load_imgs(X_train_paths)
     
     print("Start Training")
-    #X_train, X_test, y_train, y_test = train_test_split(X, joined.Weather.values)
-    #X_train, X_test, y_train, y_test = train_test_split(X, MultiLabelBinarizer().fit_transform(joined['Weather']))
-    #X_train, X_test, y_train, y_test = train_test_split(X, joined['clean'].values) #doesn't work because multilabel
-
-    n_estimators = 10
     model = make_pipeline(
                 PCA(50),
-                #OneVsRestClassifier(MLPClassifier(solver='adam', hidden_layer_sizes=(50),
-                #     activation='logistic'))
-                #SVC(C=1) # doesn't support multilabel
                 KNeighborsClassifier(n_neighbors=13)
                 )
     model.fit(X_train, y_train)
