@@ -77,7 +77,7 @@ def main():
     
     csv_directory = sys.argv[1]
     img_directory = sys.argv[2]
-    column_id = int(sys.argv[3])
+    target_id = int(sys.argv[3])
     
     # Load in CSV files from a folder
     # Where the data actually starts is hard-coded in `header=14`.
@@ -104,19 +104,19 @@ def main():
     joined = labels.set_index('DateTime').join(df.set_index('Date/Time'))
     
     # Target == weather
-    if column_id == 0:
+    if target_id == 0:
         joined = joined.dropna(subset=['Weather'])
         y = np_clean_labels(joined['Weather']).values
         y = MultiLabelBinarizer().fit_transform(y)
     # Target == Time of day
-    elif column_id == 1:
+    elif target_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
         y = joined['time_of_day'].values
     # Target == Specific Hour
-    elif column_id == 2:
+    elif target_id == 2:
         y = joined['Time'].apply(hourstring_to_int).values
     # Target == The next hour's weather
-    elif column_id == 3:
+    elif target_id == 3:
         # Shift the weather column one day to get the next hour's weather
         joined['Next_Hour_Weather'] = joined['Weather'].shift(-1)
         joined = joined.dropna(subset=['Next_Hour_Weather'])
