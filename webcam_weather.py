@@ -72,7 +72,7 @@ def hour_to_timeofday(hour_str):
 
 def main():
     if len(sys.argv) < 4:
-        print('Please input parameters in this order: CSV folder, Image folder, Column ID')
+        print('Please input parameters in this order: CSV folder, Image folder, Target ID')
         return
     
     csv_directory = sys.argv[1]
