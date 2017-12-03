@@ -1,24 +1,13 @@
 import pandas as pd
 import numpy as np
 import sys
-from skimage.io import imread_collection
-from skimage.io import ImageCollection
 import glob
 import os
-import gc
 from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
-from sklearn.svm import SVC
-from PIL import Image
-from sklearn.ensemble import BaggingClassifier
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.multiclass import OneVsRestClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.feature_extraction import image
 from sklearn.pipeline import make_pipeline
 from sklearn.decomposition import PCA
-from skimage import exposure
-from skimage import filters
 import re
 from skimage import io
 
@@ -32,7 +21,6 @@ def np_clean_labels(weather_labels):
     length = len(weather_labels)
     all_labels = []
     for i in range(0,length):
-        sub_len = len(weather_labels[i])
         s = r.findall(weather_labels[i])
         num_matches = len(s)
         string_out = ''
