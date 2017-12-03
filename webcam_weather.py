@@ -13,6 +13,7 @@ import re
 from skimage import io
 from sklearn.svm import SVC
 import gc
+from sklearn.linear_model import SGDClassifier
 
 # Clean the weather labels into several defined distinct labels.
 # Also, allows for multiple labels per row.
@@ -103,13 +104,12 @@ def main():
     elif target_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
         y = joined['time_of_day'].values
-        partial_fit_mlp = True
         
     # Target == Specific Hour
     elif target_id == 2:
-        print("This ID is disabled due to memory problems.")
-        return
-        #y = joined['Time'].apply(hourstring_to_int).values
+        #print("This ID is disabled due to memory problems.")
+        #return
+        y = joined['Time'].apply(hourstring_to_int).values
         
     # Target == The next hour's weather
     elif target_id == 3:
@@ -125,7 +125,7 @@ def main():
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
     
     # Use MLP Classifier and PCA for Time of Day
-    if partial_fit_mlp == True:
+    if target_id == 1 or target_id == 2:
         # Partial fitting allows for loading the images in two batches
         # ...instead of all at once which causes memory usage problems
         half = int(len(X_train_paths) / 2)
@@ -137,9 +137,15 @@ def main():
         
         print("Loading first half of images...")
         X_train1 = load_imgs(X_path1)
-        model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
+        
+        if target_id == 1:
+            print("Partial training first half (MLP)...")
+            model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
                       activation='logistic')
-        print("Partial training first half...")
+        else: # target_id == 2
+            print("Partial training first half (SGD)...")
+            model = SGDClassifier()
+        
         model.partial_fit(X_train1, y_train1, classes)
         del X_train1
         gc.collect()
@@ -150,6 +156,7 @@ def main():
         model.partial_fit(X_train2, y_train2)
         del X_train2
         gc.collect()
+    
     # Use KNeighbors for weather predictions
     else:
         print("Loading images...")
