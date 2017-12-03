@@ -8,9 +8,11 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.decomposition import PCA
+from sklearn.neural_network import MLPClassifier
 import re
 from skimage import io
-
+from sklearn.svm import SVC
+import gc
 
 # Clean the weather labels into several defined distinct labels.
 # Also, allows for multiple labels per row.
@@ -55,7 +57,7 @@ def hour_to_timeofday(hour_str):
         return 'Morning'
     elif hour > 12 and hour < 18:
         return 'Afternoon'
-    elif hour >= 19 and hour <= 24:
+    elif hour >= 18 and hour <= 24:
         return 'Evening'
 
 def main():
@@ -91,6 +93,7 @@ def main():
     labels['DateTime'] = pd.to_datetime(labels.string)
     joined = labels.set_index('DateTime').join(df.set_index('Date/Time'))
     
+    partial_fit_mlp = False
     # Target == weather
     if target_id == 0:
         joined = joined.dropna(subset=['Weather'])
@@ -100,9 +103,14 @@ def main():
     elif target_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
         y = joined['time_of_day'].values
+        partial_fit_mlp = True
+        
     # Target == Specific Hour
     elif target_id == 2:
-        y = joined['Time'].apply(hourstring_to_int).values
+        print("This ID is disabled due to memory problems.")
+        return
+        #y = joined['Time'].apply(hourstring_to_int).values
+        
     # Target == The next hour's weather
     elif target_id == 3:
         # Shift the weather column one day to get the next hour's weather
@@ -116,18 +124,44 @@ def main():
     
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
     
-    print("Loading images...")
-    X_train = load_imgs(X_train_paths)
+    # Use MLP Classifier and PCA for Time of Day
+    if partial_fit_mlp == True:
+        # Partial fitting allows for loading the images in two batches
+        # ...instead of all at once which causes memory usage problems
+        half = int(len(X_train_paths) / 2)
+        X_path1 = X_train_paths[:half]
+        X_path2 = X_train_paths[half:]
+        y_train1 = y_train[:half]
+        y_train2 = y_train[half:]
+        classes = np.unique(y_train)
+        
+        print("Loading first half of images...")
+        X_train1 = load_imgs(X_path1)
+        model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
+                      activation='logistic')
+        print("Partial training first half...")
+        model.partial_fit(X_train1, y_train1, classes)
+        del X_train1
+        gc.collect()
     
-    print("Start Training")
-    model = make_pipeline(
+        print("Loading second half of images...")
+        X_train2 = load_imgs(X_path2)
+        print("Partial raining second half...")
+        model.partial_fit(X_train2, y_train2)
+        del X_train2
+        gc.collect()
+    # Use KNeighbors for weather predictions
+    else:
+        print("Loading images...")
+        X_train = load_imgs(X_train_paths)
+        print("Start Training")
+        model = make_pipeline(
                 PCA(50),
                 KNeighborsClassifier(n_neighbors=13)
-                )
-    model.fit(X_train, y_train)
-    
+               )
+        model.fit(X_train, y_train)
+        
     X_test = load_imgs(X_test_paths)
-    
     print(model.score(X_test, y_test))
 
 if __name__=='__main__':
