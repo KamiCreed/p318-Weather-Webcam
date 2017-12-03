@@ -52,21 +52,16 @@ def load_imgs(X_path):
 def load_imgs_processing(X_path):
     # From https://stackoverflow.com/questions/27841554/array-of-images-in-python
     arr = np.array([np.array(io.imread(img).ravel()) for img in X_path])
-    # arr = np.empty([length,1])
-#     for i in range(0,length):
-#         img2d = io.imread(X_path[i])
-# #        misc.imshow(img2d)
-# #        input("Press enter for processing...")
-# #        img2d = exposure.equalize_hist(img2d)
-# #        misc.imshow(img2d)
-# #        input("Press enter to continue...")
-#         #img2d = filters.gaussian(img2d, sigma=8, multichannel=True)
-#         arr[i] = img2d.ravel()
     return arr
 
+# Return the hour from a time string as an int
+def hourstring_to_int(hour_str):
+    return int(hour_str[0:2])
+
+# Interprets a string with the time (hour) as a time of day.
 # Note Katkam images are only taken during daylight hours (usually 6-18 or 6AM to 6PM)
 def hour_to_timeofday(hour_str):
-    hour = int(hour_str[0:2])
+    hour = hourstring_to_int(hour_str)
     if hour > 6:
         return 'Early morning'
     elif hour >= 6 and hour <= 12:
@@ -87,13 +82,6 @@ def main():
     
     allFiles = glob.glob(csv_directory + "/*.csv")
     df = pd.concat((pd.read_csv(f, parse_dates=['Date/Time'], header=14) for f in allFiles), ignore_index=True)
-#    print(df)
-    
-#    imgs = imread_collection(os.path.join(img_directory,"*.jpg"))
-#    imgs = ImageCollection(os.path.join(img_directory,"*.jpg"))
-#    print(imgs.files)
-#    dataset_size = len(imgs)
-#    imgs = imgs.reshape(dataset_size,-1)
     
     paths = []
     names = []
@@ -118,18 +106,21 @@ def main():
         y = MultiLabelBinarizer().fit_transform(y)
     # Target == Time of day
     elif column_id == 1:
-        #y = joined.index.hour
-        #joined['timeofday'] = pd.to_datetime(joined.Time)
-        #hour_to_timeofday('21:00:00')
-        
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
         #print(joined)
         y = joined['time_of_day'].values
-    # Target == Visibility
+    # Target == Specific Hour
     elif column_id == 2:
-        return
+        y = joined['Time'].apply(hourstring_to_int).values
+    # Target == The next hour's weather
+    elif column_id == 3:
+        # Shift the weather column one day to get the next hour's weather
+        joined['Next_Hour_Weather'] = joined['Weather'].shift(-1)
+        joined = joined.dropna(subset=['Next_Hour_Weather'])
+        y = np_clean_labels(joined['Next_Hour_Weather']).values
+        y = MultiLabelBinarizer().fit_transform(y)
     else:
-        print("No training of column.")
+        print("Invalid column ID.")
         return
     
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
@@ -140,8 +131,6 @@ def main():
     print("Start Training")
     #X_train, X_test, y_train, y_test = train_test_split(X, joined.Weather.values)
     #X_train, X_test, y_train, y_test = train_test_split(X, MultiLabelBinarizer().fit_transform(joined['Weather']))
-    # got 0.00542 with MLP, no OneVsRest, MultiLabelBinarizer
-    # got 0.00542 with MLP, OneVsRest, MultiLabelBinarizer
     #X_train, X_test, y_train, y_test = train_test_split(X, joined['clean'].values) #doesn't work because multilabel
 
     n_estimators = 10
@@ -152,11 +141,6 @@ def main():
                 #SVC(C=1) # doesn't support multilabel
                 KNeighborsClassifier(n_neighbors=13)
                 )
-    # 0.49 with PCA 50, MLP adam hidden layers=50 logistic
-    # 0.407859078591 with One Vs Rest MLP adam hiddenlayers=50 logistic
-    # 0.592140921409 with KNeighbors, n_neighbors=20, PCA 50
-    # 0.605691056911 with KNeighbors, n_neighbors=15, PCA 50
-    # 0.634146341463 n_neighbors=13
     model.fit(X_train, y_train)
     
     X_test = load_imgs(X_test_paths)
