@@ -15,6 +15,7 @@ from skimage import io
 import gc
 from sklearn.linear_model import SGDClassifier
 import matplotlib.pyplot as plt
+from sklearn.naive_bayes import BernoulliNB
 
 weather_classes = ["Cloudy", "Rain", "Clear", "Fog", "Drizzle", "Ice Pellets",
                    "Hail", "Thunderstorms", "Snow"]
@@ -147,9 +148,10 @@ def main():
         X_train1, _ = load_imgs(X_path1)
         
         if target_id == 1:
-            print("Partial training first half (MLP)...")
-            model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
-                      activation='logistic')
+            print("Partial training first half (BernoulliNB)...")
+            #model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
+            #          activation='logistic')
+            model = BernoulliNB(alpha=1.0,binarize=1.0)
         else: # target_id == 2
             print("Partial training first half (SGD)...")
             model = SGDClassifier()
@@ -177,7 +179,7 @@ def main():
         model.fit(X_train, y_train)
         
     X_test, shape_test = load_imgs(X_test_paths)
-    print(model.predict(X_test))
+    #print(model.predict(X_test))
     print(model.score(X_test, y_test))
     
     num_samples = 6
