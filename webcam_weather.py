@@ -5,11 +5,9 @@ import glob
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.preprocessing import LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.decomposition import PCA
-from sklearn.neural_network import MLPClassifier
 import re
 from skimage import io
 import gc
@@ -26,7 +24,7 @@ def np_clean_labels(weather_labels):
     weather_reg = '|'.join(weather_classes)
     # https://stackoverflow.com/questions/42254384/pandas-extractall-is-not-extracting-all-cases-given-a-regex
     r = re.compile(r'\b(?:' + weather_reg + ')')
-    
+
     length = len(weather_labels)
     all_labels = []
     for i in range(0,length):
@@ -36,11 +34,11 @@ def np_clean_labels(weather_labels):
         for j in range(0,num_matches):
             l.append(s[j])
         all_labels.append(l)
-        
-    
+
+
     all_labels = pd.Series(all_labels)
     return all_labels
-    
+
 # Loads the images from an array of paths into a numpy array.
 # Each image is ravelled into one long array.
 def load_imgs(X_path):
@@ -71,7 +69,7 @@ def main():
     if len(sys.argv) < 5:
         print('Please input parameters in this order: CSV folder, Image folder, Target ID, Output folder')
         return
-    
+
     csv_directory = sys.argv[1]
     img_directory = sys.argv[2]
     target_id = int(sys.argv[3])
@@ -80,23 +78,23 @@ def main():
         os.makedirs(output_dir)
     except OSError as e:
         pass
-    
+
     # Load in CSV files from a folder
     # Where the data actually starts is hard-coded in `header=14`.
     allFiles = glob.glob(csv_directory + "/*.csv")
     df = pd.concat((pd.read_csv(f, parse_dates=['Date/Time'], header=14) for f in allFiles), ignore_index=True)
-    
+
     paths = []
     names = []
 
-    # Get the image paths in the folder    
+    # Get the image paths in the folder
     # Adapted from https://stackoverflow.com/questions/34976595/using-train-test-split-with-images-from-my-local-directory
     for path, subdirs, files in os.walk(img_directory):
         for name in files:
             img_path = os.path.join(path,name)
             paths.append(img_path)
             names.append(name)
-    
+
     # Join the image paths and weather data in terms of date.
     # This makes sure the X and the y arrays are the same size.
     labels = pd.DataFrame(names, columns=['filename'])
@@ -104,7 +102,7 @@ def main():
     labels['string'] = labels.filename.str.extract('(\d+)', expand=True).astype(str)
     labels['DateTime'] = pd.to_datetime(labels.string)
     joined = labels.set_index('DateTime').join(df.set_index('Date/Time'))
-    
+
     mlb = MultiLabelBinarizer()
     # Target == weather
     if target_id == 0:
@@ -115,11 +113,11 @@ def main():
     elif target_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
         y = joined['time_of_day'].values
-        
+
     # Target == Specific Hour
     elif target_id == 2:
         y = joined['Time'].apply(hourstring_to_int).values
-        
+
     # Target == The next hour's weather
     elif target_id == 3:
         # Shift the weather column one day to get the next hour's weather
@@ -130,9 +128,9 @@ def main():
     else:
         print("Invalid column ID.")
         return
-    
+
     X_train_paths, X_test_paths, y_train, y_test = train_test_split(joined['paths'].values, y)
-    
+
     # Use MLP Classifier and PCA for Time of Day
     if target_id == 1 or target_id == 2:
         # Partial fitting allows for loading the images in two batches
@@ -143,30 +141,28 @@ def main():
         y_train1 = y_train[:half]
         y_train2 = y_train[half:]
         classes = np.unique(y_train)
-        
+
         print("Loading first half of images...")
         X_train1, _ = load_imgs(X_path1)
-        
+
         if target_id == 1:
             print("Partial training first half (BernoulliNB)...")
-            #model = MLPClassifier(solver='adam', hidden_layer_sizes=(4, 3),
-            #          activation='logistic')
             model = BernoulliNB(alpha=1.0,binarize=1.0)
         else: # target_id == 2
             print("Partial training first half (SGD)...")
             model = SGDClassifier()
-        
+
         model.partial_fit(X_train1, y_train1, classes)
         del X_train1
         gc.collect()
-    
+
         print("Loading second half of images...")
         X_train2, _ = load_imgs(X_path2)
         print("Partial training second half...")
         model.partial_fit(X_train2, y_train2)
         del X_train2
         gc.collect()
-    
+
     # Use KNeighbors for weather predictions
     else:
         print("Loading images...")
@@ -177,21 +173,20 @@ def main():
                 KNeighborsClassifier(n_neighbors=13)
                )
         model.fit(X_train, y_train)
-        
+
     X_test, shape_test = load_imgs(X_test_paths)
-    #print(model.predict(X_test))
     print(model.score(X_test, y_test))
-    
+
     num_samples = 6
     if num_samples > X_test.shape[0]:
         num_samples = X_test.shape[0]
-    
+
     sample = X_test[np.random.randint(0,X_test.shape[0],num_samples)]
     y_predict = model.predict(sample)
     if target_id == 0 or target_id == 3:
         y_predict = mlb.inverse_transform(y_predict)
         y_predict = [','.join(words) for words in y_predict]
-    
+
     fig, axarr = plt.subplots(int(num_samples/3), 3)
     fig.suptitle('Predictions')
     for i in range(0,num_samples):
@@ -203,7 +198,7 @@ def main():
             text = 'N/A'
         ax.set_title(text)
         ax.axis('off')
-        
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'Predictions'))
     plt.close('all')
