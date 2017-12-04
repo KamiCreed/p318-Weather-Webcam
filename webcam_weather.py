@@ -11,7 +11,6 @@ from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
 import re
 from skimage import io
-from sklearn.svm import SVC
 import gc
 from sklearn.linear_model import SGDClassifier
 
@@ -94,7 +93,6 @@ def main():
     labels['DateTime'] = pd.to_datetime(labels.string)
     joined = labels.set_index('DateTime').join(df.set_index('Date/Time'))
     
-    partial_fit_mlp = False
     # Target == weather
     if target_id == 0:
         joined = joined.dropna(subset=['Weather'])
@@ -107,8 +105,6 @@ def main():
         
     # Target == Specific Hour
     elif target_id == 2:
-        #print("This ID is disabled due to memory problems.")
-        #return
         y = joined['Time'].apply(hourstring_to_int).values
         
     # Target == The next hour's weather
