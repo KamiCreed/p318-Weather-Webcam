@@ -7,7 +7,7 @@ The training data used is Kat Kam's images and the provided weather data.
 
 Run this command to train the data and output a score:
 ```bash
-python3 webcam_weather.py <csv weather data folder> <images folder> <target ID>
+python3 webcam_weather.py <csv weather data folder> <images folder> <target ID> <output folder>
 ```
 
 The target ID determines the target for prediction. Input one of the following integers:
@@ -20,3 +20,10 @@ The target ID determines the target for prediction. Input one of the following i
 The images must have the datetime in the filename such as "katkam-20160605060000.jpg"
 
 The only numbers in the filename should be the datetime.
+
+The output folder specifies where a sample prediction plot will be saved at.
+
+Here is an example command with the default katkam and yvr weather data.
+```bash
+python3 webcam_weather.py yvr-weather/ katkam-scaled/ 1 output
+```
