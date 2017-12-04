@@ -103,6 +103,7 @@ ENV/
 /katkam-scaled
 /test-img
 /test-weather
+/output
 
 # LibreOffice locks
 .~lock.*#

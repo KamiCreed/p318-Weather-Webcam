@@ -5,6 +5,7 @@ import glob
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.preprocessing import LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.decomposition import PCA
@@ -13,24 +14,27 @@ import re
 from skimage import io
 import gc
 from sklearn.linear_model import SGDClassifier
+import matplotlib.pyplot as plt
+
+weather_classes = ["Cloudy", "Rain", "Clear", "Fog", "Drizzle", "Ice Pellets",
+                   "Hail", "Thunderstorms", "Snow"]
 
 # Clean the weather labels into several defined distinct labels.
 # Also, allows for multiple labels per row.
 def np_clean_labels(weather_labels):
+    weather_reg = '|'.join(weather_classes)
     # https://stackoverflow.com/questions/42254384/pandas-extractall-is-not-extracting-all-cases-given-a-regex
-    r = re.compile(r'\b(?:Cloudy|Rain|Clear|Fog|Drizzle|Ice Pellets|Hail|Thunderstorms|Snow)')
+    r = re.compile(r'\b(?:' + weather_reg + ')')
     
     length = len(weather_labels)
     all_labels = []
     for i in range(0,length):
         s = r.findall(weather_labels[i])
         num_matches = len(s)
-        string_out = ''
+        l = []
         for j in range(0,num_matches):
-            string_out += s[j]
-            if j < num_matches-1:
-                string_out += ','
-        all_labels.append(string_out)
+            l.append(s[j])
+        all_labels.append(l)
         
     
     all_labels = pd.Series(all_labels)
@@ -39,9 +43,11 @@ def np_clean_labels(weather_labels):
 # Loads the images from an array of paths into a numpy array.
 # Each image is ravelled into one long array.
 def load_imgs(X_path):
+    # Assuming they are all the same size
+    shape = np.shape(io.imread(X_path[0]))
     # From https://stackoverflow.com/questions/27841554/array-of-images-in-python
     arr = np.array([np.array(io.imread(img).ravel()) for img in X_path])
-    return arr
+    return arr, shape
 
 # Return the hour from a time string as an int
 def hourstring_to_int(hour_str):
@@ -51,7 +57,7 @@ def hourstring_to_int(hour_str):
 # Note Katkam images are only taken during daylight hours (usually 6-18 or 6AM to 6PM)
 def hour_to_timeofday(hour_str):
     hour = hourstring_to_int(hour_str)
-    if hour > 6:
+    if hour < 6:
         return 'Early morning'
     elif hour >= 6 and hour <= 12:
         return 'Morning'
@@ -61,13 +67,18 @@ def hour_to_timeofday(hour_str):
         return 'Evening'
 
 def main():
-    if len(sys.argv) < 4:
-        print('Please input parameters in this order: CSV folder, Image folder, Target ID')
+    if len(sys.argv) < 5:
+        print('Please input parameters in this order: CSV folder, Image folder, Target ID, Output folder')
         return
     
     csv_directory = sys.argv[1]
     img_directory = sys.argv[2]
     target_id = int(sys.argv[3])
+    output_dir = sys.argv[4]
+    try:
+        os.makedirs(output_dir)
+    except OSError as e:
+        pass
     
     # Load in CSV files from a folder
     # Where the data actually starts is hard-coded in `header=14`.
@@ -93,11 +104,12 @@ def main():
     labels['DateTime'] = pd.to_datetime(labels.string)
     joined = labels.set_index('DateTime').join(df.set_index('Date/Time'))
     
+    mlb = MultiLabelBinarizer()
     # Target == weather
     if target_id == 0:
         joined = joined.dropna(subset=['Weather'])
         y = np_clean_labels(joined['Weather']).values
-        y = MultiLabelBinarizer().fit_transform(y)
+        y = mlb.fit_transform(y)
     # Target == Time of day
     elif target_id == 1:
         joined['time_of_day'] = joined['Time'].apply(hour_to_timeofday)
@@ -113,7 +125,7 @@ def main():
         joined['Next_Hour_Weather'] = joined['Weather'].shift(-1)
         joined = joined.dropna(subset=['Next_Hour_Weather'])
         y = np_clean_labels(joined['Next_Hour_Weather']).values
-        y = MultiLabelBinarizer().fit_transform(y)
+        y = mlb.fit_transform(y)
     else:
         print("Invalid column ID.")
         return
@@ -132,7 +144,7 @@ def main():
         classes = np.unique(y_train)
         
         print("Loading first half of images...")
-        X_train1 = load_imgs(X_path1)
+        X_train1, _ = load_imgs(X_path1)
         
         if target_id == 1:
             print("Partial training first half (MLP)...")
@@ -147,8 +159,8 @@ def main():
         gc.collect()
     
         print("Loading second half of images...")
-        X_train2 = load_imgs(X_path2)
-        print("Partial raining second half...")
+        X_train2, _ = load_imgs(X_path2)
+        print("Partial training second half...")
         model.partial_fit(X_train2, y_train2)
         del X_train2
         gc.collect()
@@ -156,7 +168,7 @@ def main():
     # Use KNeighbors for weather predictions
     else:
         print("Loading images...")
-        X_train = load_imgs(X_train_paths)
+        X_train, _ = load_imgs(X_train_paths)
         print("Start Training")
         model = make_pipeline(
                 PCA(50),
@@ -164,8 +176,35 @@ def main():
                )
         model.fit(X_train, y_train)
         
-    X_test = load_imgs(X_test_paths)
+    X_test, shape_test = load_imgs(X_test_paths)
+    print(model.predict(X_test))
     print(model.score(X_test, y_test))
+    
+    num_samples = 6
+    if num_samples > X_test.shape[0]:
+        num_samples = X_test.shape[0]
+    
+    sample = X_test[np.random.randint(0,X_test.shape[0],num_samples)]
+    y_predict = model.predict(sample)
+    if target_id == 0 or target_id == 3:
+        y_predict = mlb.inverse_transform(y_predict)
+        y_predict = [','.join(words) for words in y_predict]
+    
+    fig, axarr = plt.subplots(int(num_samples/3), 3)
+    fig.suptitle('Predictions')
+    for i in range(0,num_samples):
+        ax = axarr[int(i/3),i%3]
+        img = np.reshape(sample[i], shape_test) # Reshape ravelled back to RGB image
+        ax.imshow(img)
+        text = y_predict[i]
+        if text == '':
+            text = 'N/A'
+        ax.set_title(text)
+        ax.axis('off')
+        
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'Predictions'))
+    plt.close('all')
 
 if __name__=='__main__':
     main()
